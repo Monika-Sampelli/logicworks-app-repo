@@ -224,5 +224,3 @@ resource "aws_codepipeline" "pipeline" {
   }
 }
 
-
-Next Steps:
