@@ -32,7 +32,7 @@ resource "aws_iam_role_policy_attachment" "codebuild_role_policy_attach" {
   policy_arn = "arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess"
 }
 
-# --- THIS BLOCK FIXES THE "ACCESS_DENIED" ERROR IN YOUR IMAGE ---
+# FIX: Policy to resolve S3 AccessDenied, CloudWatch Logs, and ECR push errors
 resource "aws_iam_role_policy" "codebuild_extra_policy" {
   name = "logicworks-codebuild-extra-policy"
   role = aws_iam_role.codebuild_role.id
@@ -41,13 +41,19 @@ resource "aws_iam_role_policy" "codebuild_extra_policy" {
     Version = "2012-10-17"
     Statement = [
       {
+        # Fixes: s3:GetObject Access Denied (Downloading Source)
+        Action   = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"]
+        Effect   = "Allow"
+        Resource = ["${aws_s3_bucket.artifact_bucket.arn}/*"]
+      },
+      {
         # Fixes: logs:CreateLogStream Access Denied
         Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Effect   = "Allow"
         Resource = "*"
       },
       {
-        # Allows CodeBuild to login to ECR and push the Docker image
+        # Allows CodeBuild to Push Docker Images to ECR
         Action   = [
           "ecr:GetAuthorizationToken",
           "ecr:BatchCheckLayerAvailability",
@@ -217,3 +223,6 @@ resource "aws_codepipeline" "pipeline" {
     }
   }
 }
+
+
+Next Steps:
