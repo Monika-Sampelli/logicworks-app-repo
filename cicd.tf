@@ -32,7 +32,7 @@ resource "aws_iam_role_policy_attachment" "codebuild_role_policy_attach" {
   policy_arn = "arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess"
 }
 
-# --- THIS IS THE MISSING BLOCK THAT FIXES YOUR IMAGE ERROR ---
+# --- THIS BLOCK FIXES THE "ACCESS_DENIED" ERROR IN YOUR IMAGE ---
 resource "aws_iam_role_policy" "codebuild_extra_policy" {
   name = "logicworks-codebuild-extra-policy"
   role = aws_iam_role.codebuild_role.id
@@ -47,7 +47,7 @@ resource "aws_iam_role_policy" "codebuild_extra_policy" {
         Resource = "*"
       },
       {
-        # Allows pushing your Docker image to ECR
+        # Allows CodeBuild to login to ECR and push the Docker image
         Action   = [
           "ecr:GetAuthorizationToken",
           "ecr:BatchCheckLayerAvailability",
