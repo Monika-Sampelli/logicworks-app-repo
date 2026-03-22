@@ -32,7 +32,7 @@ resource "aws_iam_role_policy_attachment" "codebuild_role_policy_attach" {
   policy_arn = "arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess"
 }
 
-# FIX: Policy to resolve ACCESS_DENIED for CloudWatch Logs and ECR
+# --- THIS IS THE CRITICAL LOGGING BLOCK ---
 resource "aws_iam_role_policy" "codebuild_extra_policy" {
   name = "logicworks-codebuild-extra-policy"
   role = aws_iam_role.codebuild_role.id
@@ -41,13 +41,13 @@ resource "aws_iam_role_policy" "codebuild_extra_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        # Fixes CloudWatch Logs Access Denied
+        # Permissions for CloudWatch Logs
         Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Effect   = "Allow"
         Resource = "*"
       },
       {
-        # Allows CodeBuild to Push Docker Images to ECR
+        # Permissions for ECR Push
         Action   = [
           "ecr:GetAuthorizationToken",
           "ecr:BatchCheckLayerAvailability",
@@ -217,3 +217,7 @@ resource "aws_codepipeline" "pipeline" {
     }
   }
 }
+
+
+
+
