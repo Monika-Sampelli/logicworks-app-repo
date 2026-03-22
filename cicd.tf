@@ -32,7 +32,7 @@ resource "aws_iam_role_policy_attachment" "codebuild_role_policy_attach" {
   policy_arn = "arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess"
 }
 
-# --- THIS IS THE CRITICAL LOGGING BLOCK ---
+# --- THIS IS THE MISSING BLOCK THAT FIXES YOUR IMAGE ERROR ---
 resource "aws_iam_role_policy" "codebuild_extra_policy" {
   name = "logicworks-codebuild-extra-policy"
   role = aws_iam_role.codebuild_role.id
@@ -41,13 +41,13 @@ resource "aws_iam_role_policy" "codebuild_extra_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        # Permissions for CloudWatch Logs
+        # Fixes: logs:CreateLogStream Access Denied
         Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Effect   = "Allow"
         Resource = "*"
       },
       {
-        # Permissions for ECR Push
+        # Allows pushing your Docker image to ECR
         Action   = [
           "ecr:GetAuthorizationToken",
           "ecr:BatchCheckLayerAvailability",
@@ -217,7 +217,3 @@ resource "aws_codepipeline" "pipeline" {
     }
   }
 }
-
-
-
-
