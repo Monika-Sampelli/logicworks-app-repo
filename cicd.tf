@@ -32,6 +32,39 @@ resource "aws_iam_role_policy_attachment" "codebuild_role_policy_attach" {
   policy_arn = "arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess"
 }
 
+# FIX: Policy to resolve ACCESS_DENIED for CloudWatch Logs and ECR
+resource "aws_iam_role_policy" "codebuild_extra_policy" {
+  name = "logicworks-codebuild-extra-policy"
+  role = aws_iam_role.codebuild_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # Fixes CloudWatch Logs Access Denied
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      {
+        # Allows CodeBuild to Push Docker Images to ECR
+        Action   = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+          "ecr:PutImage",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 ##############################
 # S3 Bucket for Pipeline Artifacts
 ##############################
@@ -101,25 +134,21 @@ resource "aws_iam_role_policy" "pipeline_service_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        # S3 Permissions
         Action   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetBucketVersioning", "s3:PutObject", "s3:PutObjectAcl"]
         Effect   = "Allow"
         Resource = [aws_s3_bucket.artifact_bucket.arn, "${aws_s3_bucket.artifact_bucket.arn}/*"]
       },
       {
-        # GitHub Connection Permission (REQUIRED)
         Action   = "codestar-connections:UseConnection"
         Effect   = "Allow"
         Resource = aws_codestarconnections_connection.github_conn.arn
       },
       {
-        # CodeBuild Permissions
         Action   = ["codebuild:BatchGetBuilds", "codebuild:StartBuild"]
         Effect   = "Allow"
         Resource = aws_codebuild_project.app_build.arn
       },
       {
-        # ECS & IAM PassRole Permissions
         Action   = ["ecs:*", "iam:PassRole"]
         Effect   = "Allow"
         Resource = "*"
@@ -146,12 +175,12 @@ resource "aws_codepipeline" "pipeline" {
       name             = "Source"
       category         = "Source"
       owner            = "AWS"
-      provider         = "CodeStarSourceConnection" # CHANGED
+      provider         = "CodeStarSourceConnection"
       version          = "1"
       output_artifacts = ["source_output"]
       configuration = {
         ConnectionArn    = aws_codestarconnections_connection.github_conn.arn
-        FullRepositoryId = "Monika-Sampelli/logicworks-app-repo" # UPDATED ID
+        FullRepositoryId = "Monika-Sampelli/logicworks-app-repo"
         BranchName       = "main"
       }
     }
@@ -188,7 +217,3 @@ resource "aws_codepipeline" "pipeline" {
     }
   }
 }
-
-
-
-
