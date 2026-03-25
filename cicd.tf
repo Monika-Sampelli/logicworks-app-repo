@@ -1,7 +1,7 @@
 ##############################
 # Data Source
 ##############################
-# data "aws_caller_identity" "current" {}
+#data "aws_caller_identity" "current" {}
 
 ##############################
 # GitHub Connection
@@ -12,7 +12,7 @@ resource "aws_codestarconnections_connection" "github_conn" {
 }
 
 ##############################
-# SNS Notifications
+# SNS Notifications (Requirement 6 & 7)
 ##############################
 resource "aws_sns_topic" "pipeline_notifications" {
   name = "logicworks-pipeline-notifications"
@@ -160,6 +160,12 @@ resource "aws_iam_role_policy" "pipeline_service_policy" {
         Resource = aws_codebuild_project.app_build.arn
       },
       {
+        # FIX: Added permission to send approval emails
+        Action   = "sns:Publish"
+        Effect   = "Allow"
+        Resource = aws_sns_topic.pipeline_notifications.arn
+      },
+      {
         Action   = ["ecs:*", "iam:PassRole"]
         Effect   = "Allow"
         Resource = "*"
@@ -169,7 +175,7 @@ resource "aws_iam_role_policy" "pipeline_service_policy" {
 }
 
 ##############################
-# CodePipeline with Approval
+# CodePipeline
 ##############################
 resource "aws_codepipeline" "pipeline" {
   name     = "logicworks-automation-pipeline"
@@ -211,16 +217,17 @@ resource "aws_codepipeline" "pipeline" {
     }
   }
 
+  # Requirement 7: Manual Approval Gate
   stage {
     name = "Approval"
     action {
-      name             = "ManualApproval"
-      category         = "Approval"
-      owner            = "AWS"
-      provider         = "Manual"
-      version          = "1"
+      name     = "ManualApproval"
+      category = "Approval"
+      owner    = "AWS"
+      provider = "Manual"
+      version  = "1"
       configuration = {
-        CustomData     = "Approve deployment to Production"
+        CustomData      = "Please approve deployment to Logicworks Production"
         NotificationArn = aws_sns_topic.pipeline_notifications.arn
       }
     }
@@ -245,7 +252,7 @@ resource "aws_codepipeline" "pipeline" {
 }
 
 ##############################
-# CloudWatch Monitoring
+# CloudWatch Monitoring (Requirement 6)
 ##############################
 resource "aws_cloudwatch_metric_alarm" "ecs_unhealthy" {
   alarm_name          = "ecs-service-unhealthy"
