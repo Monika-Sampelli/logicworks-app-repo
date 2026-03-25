@@ -21,7 +21,7 @@ resource "aws_sns_topic" "pipeline_notifications" {
 resource "aws_sns_topic_subscription" "email_sub" {
   topic_arn = aws_sns_topic.pipeline_notifications.arn
   protocol  = "email"
-  endpoint  = "ops-team@example.com"
+  endpoint  = "sampellimonika@gmail.com"
 }
 
 ##############################
