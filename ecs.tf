@@ -1,24 +1,15 @@
+$ cat ecs.tf
 ##############################
-# ECS Cluster - Primary (us-east-1)
+# ECS Cluster
 ##############################
 resource "aws_ecs_cluster" "logicworks_cluster" {
-  provider = aws.primary
-  name     = "logicworks-cluster"
+  name = "logicworks-cluster"
 }
 
 ##############################
-# ECS Cluster - Secondary (us-west-2)
-##############################
-resource "aws_ecs_cluster" "secondary_cluster" {
-  provider = aws.secondary
-  name     = "logicworks-cluster-west"
-}
-
-##############################
-# CloudWatch Logs (Primary)
+# CloudWatch Logs
 ##############################
 resource "aws_cloudwatch_log_group" "ecs_log_group" {
-  provider          = aws.primary
   name              = "/ecs/logicworks-app"
   retention_in_days = 7
 }
@@ -45,7 +36,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
 }
 
 ##############################
-# ECS Task Definition (Shared)
+# ECS Task Definition
 ##############################
 resource "aws_ecs_task_definition" "app_task" {
   family                   = "logicworks-app-task"
@@ -55,34 +46,30 @@ resource "aws_ecs_task_definition" "app_task" {
   memory                   = "512"
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
 
-  container_definitions = jsonencode([
-    {
-      name      = "logicworks-app"
-      image     = "${aws_ecr_repository.myapp.repository_url}:latest"
-      essential = true
-      portMappings = [
-        {
-          containerPort = 80
-          hostPort      = 80
-        }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = "/ecs/logicworks-app"
-          awslogs-region        = "us-east-1"
-          awslogs-stream-prefix = "ecs"
-        }
+  container_definitions = jsonencode([{
+    name      = "app"
+    image     = "${aws_ecr_repository.app_repo.repository_url}:latest"
+    essential = true
+    portMappings = [{
+      containerPort = 80,
+      hostPort      = 80,
+      protocol      = "tcp"
+    }]
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/ecs/logicworks-app"
+        "awslogs-region"        = "us-east-1"
+        "awslogs-stream-prefix" = "ecs"
       }
     }
-  ])
+  }])
 }
 
 ##############################
-# ECS Service - Primary (us-east-1)
+# ECS Service
 ##############################
 resource "aws_ecs_service" "app_service" {
-  provider        = aws.primary
   name            = "app-service"
   cluster         = aws_ecs_cluster.logicworks_cluster.id
   task_definition = aws_ecs_task_definition.app_task.arn
@@ -92,28 +79,6 @@ resource "aws_ecs_service" "app_service" {
   network_configuration {
     subnets          = [aws_subnet.primary_subnet.id]
     security_groups  = [aws_security_group.app_sg.id]
-    assign_public_ip = true
-  }
-
-  lifecycle {
-    ignore_changes = [task_definition, desired_count]
-  }
-}
-
-##############################
-# ECS Service - Secondary (us-west-2)
-##############################
-resource "aws_ecs_service" "secondary_app_service" {
-  provider        = aws.secondary
-  name            = "app-service-west"
-  cluster         = aws_ecs_cluster.secondary_cluster.id
-  task_definition = aws_ecs_task_definition.app_task.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    subnets          = [aws_subnet.secondary_subnet.id]
-    security_groups  = [aws_security_group.secondary_app_sg.id]
     assign_public_ip = true
   }
 
