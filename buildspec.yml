@@ -1,18 +1,26 @@
 version: 0.2
+
 env:
   variables:
     RE: "251622686032.dkr.ecr.us-east-1.amazonaws.com"
     REPOSITORY_NAME: "logicworks-app"
+
 phases:
   pre_build:
     commands:
+      - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $RE
   build:
     commands:
+      - echo Building the Docker image...
       - docker build -t $RE/$REPOSITORY_NAME:latest .
   post_build:
     commands:
+      - echo Pushing the Docker image...
       - docker push $RE/$REPOSITORY_NAME:latest
-      - printf '[{"name":"logicworks-app","imageUri":"%s"}]' "$RE/$REPOSITORY_NAME:latest" > imagedefinitions.json
+      - echo Writing image definitions file...
+      # CRITICAL FIX: The name here MUST be "app" to match ecs.tf
+      - printf '[{"name":"app","imageUri":"%s"}]' "$RE/$REPOSITORY_NAME:latest" > imagedefinitions.json
+
 artifacts:
-  files: imagedefinitions.json
+    files: imagedefinitions.json
