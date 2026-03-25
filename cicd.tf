@@ -1,7 +1,7 @@
 ##############################
 # Data Source
 ##############################
-#data "aws_caller_identity" "current" {}
+# data "aws_caller_identity" "current" {}
 
 ##############################
 # GitHub Connection
@@ -9,6 +9,19 @@
 resource "aws_codestarconnections_connection" "github_conn" {
   name          = "monika-github-connection"
   provider_type = "GitHub"
+}
+
+##############################
+# SNS Notifications
+##############################
+resource "aws_sns_topic" "pipeline_notifications" {
+  name = "logicworks-pipeline-notifications"
+}
+
+resource "aws_sns_topic_subscription" "email_sub" {
+  topic_arn = aws_sns_topic.pipeline_notifications.arn
+  protocol  = "email"
+  endpoint  = "ops-team@example.com"
 }
 
 ##############################
@@ -32,7 +45,6 @@ resource "aws_iam_role_policy_attachment" "codebuild_role_policy_attach" {
   policy_arn = "arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess"
 }
 
-# FIX: Policy to resolve S3 AccessDenied, CloudWatch Logs, and ECR push errors
 resource "aws_iam_role_policy" "codebuild_extra_policy" {
   name = "logicworks-codebuild-extra-policy"
   role = aws_iam_role.codebuild_role.id
@@ -41,19 +53,16 @@ resource "aws_iam_role_policy" "codebuild_extra_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        # Fixes: s3:GetObject Access Denied (Downloading Source)
         Action   = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"]
         Effect   = "Allow"
         Resource = ["${aws_s3_bucket.artifact_bucket.arn}/*"]
       },
       {
-        # Fixes: logs:CreateLogStream Access Denied
         Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Effect   = "Allow"
         Resource = "*"
       },
       {
-        # Allows CodeBuild to Push Docker Images to ECR
         Action   = [
           "ecr:GetAuthorizationToken",
           "ecr:BatchCheckLayerAvailability",
@@ -81,17 +90,13 @@ resource "aws_s3_bucket" "artifact_bucket" {
 
 resource "aws_s3_bucket_versioning" "artifact_bucket_versioning" {
   bucket = aws_s3_bucket.artifact_bucket.id
-  versioning_configuration {
-    status = "Enabled"
-  }
+  versioning_configuration { status = "Enabled" }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "artifact_bucket_encryption" {
   bucket = aws_s3_bucket.artifact_bucket.id
   rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
+    apply_server_side_encryption_by_default { sse_algorithm = "AES256" }
   }
 }
 
@@ -117,7 +122,7 @@ resource "aws_codebuild_project" "app_build" {
 }
 
 ##############################
-# Pipeline IAM Role & Custom Policy
+# Pipeline IAM Role & Policy
 ##############################
 resource "aws_iam_role" "pipeline_role" {
   name = "logicworks-pipeline-role"
@@ -164,7 +169,7 @@ resource "aws_iam_role_policy" "pipeline_service_policy" {
 }
 
 ##############################
-# CodePipeline
+# CodePipeline with Approval
 ##############################
 resource "aws_codepipeline" "pipeline" {
   name     = "logicworks-automation-pipeline"
@@ -207,6 +212,21 @@ resource "aws_codepipeline" "pipeline" {
   }
 
   stage {
+    name = "Approval"
+    action {
+      name             = "ManualApproval"
+      category         = "Approval"
+      owner            = "AWS"
+      provider         = "Manual"
+      version          = "1"
+      configuration = {
+        CustomData     = "Approve deployment to Production"
+        NotificationArn = aws_sns_topic.pipeline_notifications.arn
+      }
+    }
+  }
+
+  stage {
     name = "Deploy"
     action {
       name            = "Deploy"
@@ -224,3 +244,22 @@ resource "aws_codepipeline" "pipeline" {
   }
 }
 
+##############################
+# CloudWatch Monitoring
+##############################
+resource "aws_cloudwatch_metric_alarm" "ecs_unhealthy" {
+  alarm_name          = "ecs-service-unhealthy"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "UnhealthyHostCount"
+  namespace           = "AWS/ECS"
+  period              = 60
+  statistic           = "Maximum"
+  threshold           = 0
+  alarm_actions       = [aws_sns_topic.pipeline_notifications.arn]
+
+  dimensions = {
+    ClusterName = aws_ecs_cluster.logicworks_cluster.name
+    ServiceName = aws_ecs_service.app_service.name
+  }
+}
