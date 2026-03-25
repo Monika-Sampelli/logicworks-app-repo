@@ -3,7 +3,7 @@ version: 0.2
 env:
   variables:
     RE: "251622686032.dkr.ecr.us-east-1.amazonaws.com"
-    REPOSITORY_NAME: "YOUR_REPO_NAME"
+    REPOSITORY_NAME: "logicworks-app"
 
 phases:
   pre_build:
@@ -18,3 +18,8 @@ phases:
     commands:
       - echo Pushing the Docker image...
       - docker push $RE/$REPOSITORY_NAME:latest
+      - echo Writing image definitions file...
+      - printf '[{"name":"logicworks-app","imageUri":"%s"}]' "$RE/$REPOSITORY_NAME:latest" > imagedefinitions.json
+
+artifacts:
+    files: imagedefinitions.json
