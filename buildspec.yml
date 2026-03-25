@@ -10,10 +10,13 @@ phases:
     commands:
       - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $RE
+      - echo "Checking files in current directory:"
+      - ls -R
   build:
     commands:
       - echo Building the Docker image...
-      - docker build -t $RE/$REPOSITORY_NAME:latest .
+      # Added -f Dockerfile to be explicit
+      - docker build -t $RE/$REPOSITORY_NAME:latest -f Dockerfile .
   post_build:
     commands:
       - echo Pushing the Docker image...
